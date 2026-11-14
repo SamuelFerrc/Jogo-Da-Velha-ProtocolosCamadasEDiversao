@@ -161,3 +161,38 @@ modificações do repositório.
 - Pendências: a publicação remota será verificada após a criação do primeiro
   commit. Permanecem as lacunas funcionais e de evidência já registradas nas
   entradas anteriores; este versionamento não as declara concluídas.
+
+### 2026-11-12 21:30 — USUÁRIO — C01: especificação do fluxo do cliente
+
+- Arquivos: `docs/cliente.md` e `docs/linha_do_tempo.md`.
+- Modificação: preenchido `docs/cliente.md` com a jornada do jogador, menu inicial de terminal, fluxo de conexão, identificação, lobby, partida, jogadas, resultados, encerramento e casos de uso.
+- Verificação: conteúdo salvo e conferido pelo usuário por meio do comando `type docs\cliente.md`.
+- Pendências: validação da especificação pela equipe e aprovação conjunta do marco I01. Implementação do cliente ainda não iniciada.
+
+
+### 2026-11-13 00:06 — USUÁRIO — C02 a C13: implementação e documentação do cliente
+
+- Arquivos: `client/interface.py`, `client/client.py`, `tests/test_client.py`, `testar_lobby.py`, `docs/cliente.md` e `docs/linha_do_tempo.md`(Sendo alguns apwnas para testes).
+- Modificação: implementada a interface de terminal com tabuleiro 3×3 e entrada de coordenadas. Desenvolvidas as funções de conexão TCP, identificação, entrada e espera no lobby, início da partida, envio de jogadas, processamento de resultados, atualização do tabuleiro, recebimento das jogadas do adversário e encerramento. Adicionado o menu principal com as opções de conectar e jogar ou sair, além dos argumentos `--host` e `--port`. Criados testes automatizados para o cliente e atualizada a documentação com as etapas C02 a C13.
+- Verificação: `python -m py_compile client\client.py` executado sem erros. Testados manualmente o menu e a opção de saída. Realizado teste com servidor TCP simulado na porta 5001, verificando conexão, identificação, entrada no lobby, início da partida, recebimento do tabuleiro, encerramento e retorno ao menu. Os 29 testes específicos do cliente passaram. A suíte completa executou 84 testes, todos aprovados.
+- Pendências: integração com o servidor real não realizada, pois sua implementação não faz parte desta responsabilidade. A aprovação conjunta do marco I01 permanece pendente da equipe. A entrada anterior de C01 registrava a implementação como ainda não iniciada; esta entrada complementa e atualiza aquele registro.
+
+### 2026-11-13 01:40 — USUÁRIO — revanche no servidor de teste local
+
+- Arquivos: `client/client.py`, `servidor_teste.py`, `docs/cliente.md` e `docs/linha_do_tempo.md`.
+- Modificação: após vitória ou empate, o cliente pergunta se deseja jogar novamente e mantém a conexão TCP aberta. O servidor de teste aguarda a decisão dos dois clientes; se ambos aceitarem, inicia outra partida, reinicia o tabuleiro e alterna as marcas. Se alguém recusar, encerra a sessão; se o outro tiver aceitado, informa que a revanche foi cancelada.
+- Verificação: não executada nesta etapa. Para validar manualmente, inicie `python servidor_teste.py` e conecte os dois clientes com `python -m client.client`; conclua uma partida e responda `s` nos dois clientes.
+- Limitação: esta alteração é para `servidor_teste.py`. O servidor oficial em `server/server.py` ainda não foi adaptado para a revanche.
+
+### 2026-11-13 19:20 —  USUÁRIO — validações TTTP/1 e placar entre revanches
+
+- Arquivos: `client/client.py`, `servidor_teste.py`, `docs/protocolo.md`, `docs/cliente.md` e `docs/linha_do_tempo.md`.
+- Modificação: o cliente confere `game_id`, revisões consecutivas, correspondência entre `MOVE_RESULT` e a jogada, alteração de uma única célula e consistência entre o tabuleiro terminal e `GAME_OVER`. O placar temporário acompanha vitórias do jogador local, do adversário e empates durante a sequência de revanches; não é persistido. O contrato documenta `JOIN` como pedido de revanche após `GAME_OVER(WIN|DRAW)`, `QUIT` como recusa e o uso de um novo `game_id` para cada partida. O servidor de teste encerra a sessão quando qualquer um recusa, sem emitir `GAME_OVER` para uma partida que não começou.
+- Verificação: não executada nesta etapa.
+- Limitação: a implementação do placar e da revanche permanece no cliente e no servidor de teste. Os arquivos do servidor oficial continuam sem implementação.
+
+### 2026-11-14 01:35 — USUÁRIO — atualização dos testes do cliente
+
+- Arquivos: `tests/test_client.py` e `docs/linha_do_tempo.md`.
+- Modificação: atualizadas as simulações de partidas para incluir `game_id`, `revision`, coordenadas confirmadas e `GAME_OVER`. Acrescentada cobertura para snapshots de partida, progressão da revisão, correspondência de jogadas, validação de vitória/empate, placar por jogador e aceitação/recusa de revanche.
+- Verificação: testes não executados nesta etapa.
