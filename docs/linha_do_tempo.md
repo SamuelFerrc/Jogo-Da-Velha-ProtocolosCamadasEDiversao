@@ -225,3 +225,20 @@ modificações do repositório.
   cenário de revanche aceita com o cliente real.
 - Pendências: repetir com o cliente já mergeado na `main`; captura Wireshark
   (T12) segue pendente.
+
+### 2026-11-15 12:55 — Guilherme Crocamo — S15 / I08: documentação do servidor
+
+- Arquivos: `README.md`, `docs/servidor.md`, `docs/estados.md`,
+  `docs/arquitetura.md` e `docs/linha_do_tempo.md`.
+- Modificação: os quatro primeiros estavam vazios. Agora descrevem execução
+  (servidor e dois clientes a partir da raiz), módulos, concorrência e ordem de
+  locks, tratamento de cada erro, desconexões, máquinas de estados da sessão e
+  da partida, sequência de jogada e arquitetura geral.
+- Divergência registrada para harmonização com o PDF/planilha: a revanche via
+  `JOIN` no estado ENCERRADO (exigida pelo cliente) não consta no diagrama de
+  AGENTS.md §6.1.
+- Verificação: documentação conferida contra o código e contra os 101 testes
+  executados na entrada anterior; não houve alteração de código nesta entrada.
+  `README.md` e `docs/servidor.md` referenciam `docs/cliente.md`, que só existe
+  após o merge do PR do cliente.
+- Pendências: captura Wireshark (T12); atualizar PDF e planilha.
