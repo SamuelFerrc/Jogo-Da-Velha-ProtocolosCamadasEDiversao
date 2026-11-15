@@ -161,3 +161,97 @@ modificações do repositório.
 - Pendências: a publicação remota será verificada após a criação do primeiro
   commit. Permanecem as lacunas funcionais e de evidência já registradas nas
   entradas anteriores; este versionamento não as declara concluídas.
+
+### 2026-11-15 11:35 — Guilherme Crocamo — S07–S09: regras puras da partida
+
+- Arquivos: `server/game.py`, `tests/test_game.py` e `docs/linha_do_tempo.md`.
+- Modificação: `server/game.py` estava vazio. Agora implementa `Game`
+  (estado autoritativo com lock reentrante), `Snapshot`, `MoveOutcome`,
+  `find_winner` (3 linhas, 3 colunas, 2 diagonais) e `is_full`, sem sockets.
+  A ordem de validação é participação/`game_id`, partida ativa, turno, posição
+  e célula ocupada; rejeições não alteram tabuleiro, turno nem `revision`.
+- Verificação: `python -m unittest tests.test_game` executou 13 testes com
+  sucesso (vitória X/O, empate, rejeições, coordenadas booleanas/fracionárias,
+  jogada após término/aborto e dois `MOVE` concorrentes).
+- Pendências: lobby, servidor TCP e testes de integração nas próximas entradas.
+
+### 2026-11-15 11:45 — Guilherme Crocamo — S04–S06: lobby e pareamento
+
+- Arquivos: `server/lobby.py`, `tests/test_lobby.py` e `docs/linha_do_tempo.md`.
+- Modificação: `server/lobby.py` estava vazio. Agora implementa `Lobby`, fila
+  FIFO com lock: o primeiro da fila recebe X, `game_id` sequencial único
+  (`g1`, `g2`, ...), descarte de sessões desconectadas, `remove` e entrada
+  duplicada idempotente. `tests/test_lobby.py` foi criado (não constava na
+  estrutura prevista; separa o lobby de `test_server.py`).
+- Verificação: `python -m unittest tests.test_lobby` executou 5 testes com
+  sucesso, incluindo 20 `join` concorrentes formando 10 pares sem repetição.
+- Pendências: integração do lobby ao servidor TCP na próxima entrada.
+
+### 2026-11-15 12:20 — Guilherme Crocamo — S02–S03, S05–S14: servidor TCP
+
+- Arquivos: `server/server.py`, `tests/test_server.py` e `docs/linha_do_tempo.md`.
+- Modificação: `server/server.py` estava vazio. Agora implementa `GameServer`
+  (`listen/accept`, uma thread de leitura e uma de escrita por conexão, fila de
+  saída por sessão enfileirada sob o lock da partida para preservar a ordem
+  `MOVE_RESULT` → `BOARD` → `GAME_OVER`), a máquina de estados da sessão
+  (CONECTADO → IDENTIFICADO → AGUARDANDO → EM_PARTIDA → ENCERRADO), tratamento
+  de `BAD_FORMAT`, `UNKNOWN_TYPE`, `UNSUPPORTED_VERSION` (fecha),
+  `MESSAGE_TOO_LARGE` (fecha), `INVALID_STATE`, rejeições semânticas via
+  `MOVE_RESULT(REJECTED)`, `GAME_OVER(ABORTED)` em QUIT/EOF, timeout apenas de
+  handshake, `PING`→`PONG` e CLI `python -m server.server --host --port`.
+  Decisão registrada: `JOIN` também é aceito no estado ENCERRADO para a
+  revanche descrita em `docs/cliente.md` da branch do cliente (nova partida,
+  novo `game_id`); isso estende o diagrama de estados de AGENTS.md §6.1 e deve
+  ser harmonizado na documentação.
+- Verificação: `python -m unittest discover -s tests` executou 100 testes com
+  sucesso em 3 execuções consecutivas (27 em `test_server.py`: handshake,
+  lobby, erros de protocolo, fragmentação/concatenação, vitórias X/O, empate,
+  rejeições sem mutação, MOVE concorrentes, QUIT/queda de socket, revanche).
+- Pendências: integração com o cliente real depende do merge do PR do cliente;
+  documentação do servidor e README nas próximas entradas.
+
+### 2026-11-15 12:40 — Guilherme Crocamo — I03–I05: integração com servidor em processo separado
+
+- Arquivos: `tests/test_integration.py` e `docs/linha_do_tempo.md`.
+- Modificação: adicionado `ServerProcessTests`, que inicia
+  `python -m server.server` como subprocesso e conduz uma partida completa
+  (HELLO/WELCOME, JOIN/WAITING, START, BOARD inicial, vitória de X e
+  `GAME_OVER` para ambos) por TCP de loopback.
+- Verificação: `python -m unittest discover -s tests` executou 101 testes com
+  sucesso. Verificação manual extra, fora do repositório: o cliente real da
+  branch `origin/Gust4vo73-patch-1` (extraído via `git archive` para uma pasta
+  temporária) jogou duas instâncias contra o servidor, com vitória de X exibida
+  corretamente e recusa de revanche encerrando as sessões. Não foi executado o
+  cenário de revanche aceita com o cliente real.
+- Pendências: repetir com o cliente já mergeado na `main`; captura Wireshark
+  (T12) segue pendente.
+
+### 2026-11-15 12:55 — Guilherme Crocamo — S15 / I08: documentação do servidor
+
+- Arquivos: `README.md`, `docs/servidor.md`, `docs/estados.md`,
+  `docs/arquitetura.md` e `docs/linha_do_tempo.md`.
+- Modificação: os quatro primeiros estavam vazios. Agora descrevem execução
+  (servidor e dois clientes a partir da raiz), módulos, concorrência e ordem de
+  locks, tratamento de cada erro, desconexões, máquinas de estados da sessão e
+  da partida, sequência de jogada e arquitetura geral.
+- Divergência registrada para harmonização com o PDF/planilha: a revanche via
+  `JOIN` no estado ENCERRADO (exigida pelo cliente) não consta no diagrama de
+  AGENTS.md §6.1.
+- Verificação: documentação conferida contra o código e contra os 101 testes
+  executados na entrada anterior; não houve alteração de código nesta entrada.
+  `README.md` e `docs/servidor.md` referenciam `docs/cliente.md`, que só existe
+  após o merge do PR do cliente.
+- Pendências: captura Wireshark (T12); atualizar PDF e planilha.
+
+### 2026-11-15 11:58 — Guilherme Crocamo — S14: cobertura adicional de testes do servidor
+
+- Arquivos: `tests/test_server.py` e `docs/linha_do_tempo.md`.
+- Modificação: adicionados testes com sockets de loopback para vitória de X em
+  coluna, vitória de X na diagonal principal, vitória de O na diagonal
+  secundária e encerramento das conexões quando o servidor é parado. Nenhum
+  código de produção foi alterado.
+- Verificação: `python -m unittest discover -s tests` executou 105 testes com
+  sucesso em 3 execuções consecutivas.
+- Pendências: captura Wireshark (T12), teste em outra máquina da rede,
+  integração com o cliente após o merge do PR do cliente e harmonização do
+  PDF/planilha. Push e PR ainda não realizados, por decisão da equipe.
