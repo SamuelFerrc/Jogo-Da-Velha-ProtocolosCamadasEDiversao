@@ -161,3 +161,16 @@ modificações do repositório.
 - Pendências: a publicação remota será verificada após a criação do primeiro
   commit. Permanecem as lacunas funcionais e de evidência já registradas nas
   entradas anteriores; este versionamento não as declara concluídas.
+
+### 2026-11-15 11:35 — Guilherme Crocamo — S07–S09: regras puras da partida
+
+- Arquivos: `server/game.py`, `tests/test_game.py` e `docs/linha_do_tempo.md`.
+- Modificação: `server/game.py` estava vazio. Agora implementa `Game`
+  (estado autoritativo com lock reentrante), `Snapshot`, `MoveOutcome`,
+  `find_winner` (3 linhas, 3 colunas, 2 diagonais) e `is_full`, sem sockets.
+  A ordem de validação é participação/`game_id`, partida ativa, turno, posição
+  e célula ocupada; rejeições não alteram tabuleiro, turno nem `revision`.
+- Verificação: `python -m unittest tests.test_game` executou 13 testes com
+  sucesso (vitória X/O, empate, rejeições, coordenadas booleanas/fracionárias,
+  jogada após término/aborto e dois `MOVE` concorrentes).
+- Pendências: lobby, servidor TCP e testes de integração nas próximas entradas.
