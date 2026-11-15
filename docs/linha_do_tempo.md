@@ -209,3 +209,19 @@ modificações do repositório.
   rejeições sem mutação, MOVE concorrentes, QUIT/queda de socket, revanche).
 - Pendências: integração com o cliente real depende do merge do PR do cliente;
   documentação do servidor e README nas próximas entradas.
+
+### 2026-11-15 12:40 — Guilherme Crocamo — I03–I05: integração com servidor em processo separado
+
+- Arquivos: `tests/test_integration.py` e `docs/linha_do_tempo.md`.
+- Modificação: adicionado `ServerProcessTests`, que inicia
+  `python -m server.server` como subprocesso e conduz uma partida completa
+  (HELLO/WELCOME, JOIN/WAITING, START, BOARD inicial, vitória de X e
+  `GAME_OVER` para ambos) por TCP de loopback.
+- Verificação: `python -m unittest discover -s tests` executou 101 testes com
+  sucesso. Verificação manual extra, fora do repositório: o cliente real da
+  branch `origin/Gust4vo73-patch-1` (extraído via `git archive` para uma pasta
+  temporária) jogou duas instâncias contra o servidor, com vitória de X exibida
+  corretamente e recusa de revanche encerrando as sessões. Não foi executado o
+  cenário de revanche aceita com o cliente real.
+- Pendências: repetir com o cliente já mergeado na `main`; captura Wireshark
+  (T12) segue pendente.
