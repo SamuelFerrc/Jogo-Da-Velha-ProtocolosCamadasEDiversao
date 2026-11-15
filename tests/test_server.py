@@ -261,6 +261,41 @@ class GameplayTests(ServerTestCase):
             self.expect(x, "ERROR", code="BAD_FORMAT")
         self.play_accepted(x, o, g, 0, 0, 1)
 
+    def finish_with_win(self, x, o, g, moves, winner: str) -> None:
+        """Joga a sequência (X inicia, alternando) e confere o GAME_OVER final."""
+
+        for i, (r, c) in enumerate(moves[:-1]):
+            mover, other = (x, o) if i % 2 == 0 else (o, x)
+            self.play_accepted(mover, other, g, r, c, i + 1)
+        last = len(moves)
+        mover = x if (last - 1) % 2 == 0 else o
+        self.move(mover, g, *moves[-1])
+        self.expect(mover, "MOVE_RESULT", status="ACCEPTED", revision=last)
+        for channel in (x, o):
+            self.expect(channel, "BOARD", revision=last, turn=None)
+            self.expect(channel, "GAME_OVER", result="WIN", winner=winner)
+
+    def test_x_wins_column(self) -> None:
+        x, o, g = self.start_match()
+        self.finish_with_win(x, o, g, [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0)], "X")
+
+    def test_x_wins_main_diagonal(self) -> None:
+        x, o, g = self.start_match()
+        self.finish_with_win(x, o, g, [(0, 0), (0, 1), (1, 1), (0, 2), (2, 2)], "X")
+
+    def test_o_wins_anti_diagonal(self) -> None:
+        x, o, g = self.start_match()
+        self.finish_with_win(
+            x, o, g, [(0, 0), (0, 2), (0, 1), (1, 1), (2, 2), (2, 0)], "O"
+        )
+
+    def test_server_shutdown_closes_connections(self) -> None:
+        x, o, _ = self.start_match()
+        self.server.stop()
+        for channel in (x, o):
+            with self.assertRaises(TransportError):
+                channel.receive_message()
+
     def test_opponent_quit_aborts_game(self) -> None:
         x, o, g = self.start_match()
         x.send_message(make_message("QUIT"))

@@ -242,3 +242,16 @@ modificações do repositório.
   `README.md` e `docs/servidor.md` referenciam `docs/cliente.md`, que só existe
   após o merge do PR do cliente.
 - Pendências: captura Wireshark (T12); atualizar PDF e planilha.
+
+### 2026-11-15 11:58 — Guilherme Crocamo — S14: cobertura adicional de testes do servidor
+
+- Arquivos: `tests/test_server.py` e `docs/linha_do_tempo.md`.
+- Modificação: adicionados testes com sockets de loopback para vitória de X em
+  coluna, vitória de X na diagonal principal, vitória de O na diagonal
+  secundária e encerramento das conexões quando o servidor é parado. Nenhum
+  código de produção foi alterado.
+- Verificação: `python -m unittest discover -s tests` executou 105 testes com
+  sucesso em 3 execuções consecutivas.
+- Pendências: captura Wireshark (T12), teste em outra máquina da rede,
+  integração com o cliente após o merge do PR do cliente e harmonização do
+  PDF/planilha. Push e PR ainda não realizados, por decisão da equipe.
