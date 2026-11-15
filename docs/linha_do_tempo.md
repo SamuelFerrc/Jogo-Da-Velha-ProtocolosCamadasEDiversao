@@ -174,3 +174,15 @@ modificações do repositório.
   sucesso (vitória X/O, empate, rejeições, coordenadas booleanas/fracionárias,
   jogada após término/aborto e dois `MOVE` concorrentes).
 - Pendências: lobby, servidor TCP e testes de integração nas próximas entradas.
+
+### 2026-11-15 11:45 — Guilherme Crocamo — S04–S06: lobby e pareamento
+
+- Arquivos: `server/lobby.py`, `tests/test_lobby.py` e `docs/linha_do_tempo.md`.
+- Modificação: `server/lobby.py` estava vazio. Agora implementa `Lobby`, fila
+  FIFO com lock: o primeiro da fila recebe X, `game_id` sequencial único
+  (`g1`, `g2`, ...), descarte de sessões desconectadas, `remove` e entrada
+  duplicada idempotente. `tests/test_lobby.py` foi criado (não constava na
+  estrutura prevista; separa o lobby de `test_server.py`).
+- Verificação: `python -m unittest tests.test_lobby` executou 5 testes com
+  sucesso, incluindo 20 `join` concorrentes formando 10 pares sem repetição.
+- Pendências: integração do lobby ao servidor TCP na próxima entrada.
