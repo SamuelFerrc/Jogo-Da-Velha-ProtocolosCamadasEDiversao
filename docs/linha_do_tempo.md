@@ -186,3 +186,26 @@ modificações do repositório.
 - Verificação: `python -m unittest tests.test_lobby` executou 5 testes com
   sucesso, incluindo 20 `join` concorrentes formando 10 pares sem repetição.
 - Pendências: integração do lobby ao servidor TCP na próxima entrada.
+
+### 2026-11-15 12:20 — Guilherme Crocamo — S02–S03, S05–S14: servidor TCP
+
+- Arquivos: `server/server.py`, `tests/test_server.py` e `docs/linha_do_tempo.md`.
+- Modificação: `server/server.py` estava vazio. Agora implementa `GameServer`
+  (`listen/accept`, uma thread de leitura e uma de escrita por conexão, fila de
+  saída por sessão enfileirada sob o lock da partida para preservar a ordem
+  `MOVE_RESULT` → `BOARD` → `GAME_OVER`), a máquina de estados da sessão
+  (CONECTADO → IDENTIFICADO → AGUARDANDO → EM_PARTIDA → ENCERRADO), tratamento
+  de `BAD_FORMAT`, `UNKNOWN_TYPE`, `UNSUPPORTED_VERSION` (fecha),
+  `MESSAGE_TOO_LARGE` (fecha), `INVALID_STATE`, rejeições semânticas via
+  `MOVE_RESULT(REJECTED)`, `GAME_OVER(ABORTED)` em QUIT/EOF, timeout apenas de
+  handshake, `PING`→`PONG` e CLI `python -m server.server --host --port`.
+  Decisão registrada: `JOIN` também é aceito no estado ENCERRADO para a
+  revanche descrita em `docs/cliente.md` da branch do cliente (nova partida,
+  novo `game_id`); isso estende o diagrama de estados de AGENTS.md §6.1 e deve
+  ser harmonizado na documentação.
+- Verificação: `python -m unittest discover -s tests` executou 100 testes com
+  sucesso em 3 execuções consecutivas (27 em `test_server.py`: handshake,
+  lobby, erros de protocolo, fragmentação/concatenação, vitórias X/O, empate,
+  rejeições sem mutação, MOVE concorrentes, QUIT/queda de socket, revanche).
+- Pendências: integração com o cliente real depende do merge do PR do cliente;
+  documentação do servidor e README nas próximas entradas.
