@@ -1,0 +1,25 @@
+import QtQuick
+
+QtObject {
+    readonly property color primary: "#0052ff"
+    readonly property color primaryActive: "#003ecc"
+    readonly property color primaryDisabled: "#a8b8cc"
+    readonly property color ink: "#0a0b0d"
+    readonly property color body: "#5b616e"
+    readonly property color muted: "#7c828a"
+    readonly property color mutedSoft: "#a8acb3"
+    readonly property color hairline: "#dee1e6"
+    readonly property color hairlineSoft: "#eef0f3"
+    readonly property color canvas: "#ffffff"
+    readonly property color surfaceSoft: "#f7f7f7"
+    readonly property color surfaceStrong: "#eef0f3"
+    readonly property color surfaceDark: "#0a0b0d"
+    readonly property color surfaceDarkElevated: "#16181c"
+    readonly property color textOnPrimary: "#ffffff"
+    readonly property color textOnDark: "#ffffff"
+    readonly property color textOnDarkSoft: "#a8acb3"
+    readonly property color authoritySoft: "#edf3ff"
+    readonly property color semanticDown: "#cf202f"
+    readonly property string sans: "Segoe UI"
+    readonly property string mono: "Consolas"
+}

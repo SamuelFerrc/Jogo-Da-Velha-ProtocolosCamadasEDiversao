@@ -104,6 +104,13 @@ a conexão não é reutilizada.
 Cliente e servidor devem importar essa API comum por `shared`. Não devem criar
 outro algoritmo de serialização ou enquadramento.
 
+`MessageChannel` aceita opcionalmente um observador de `shared.telemetry`. Ele
+recebe eventos locais após o envio completo e após a reconstrução/decodificação
+de um registro, incluindo bytes e buffer residual. O observador não modifica o
+payload, não envia telemetria pela rede e suas exceções são isoladas do canal.
+Essa API alimenta as janelas didáticas descritas em
+[`interface_grafica.md`](interface_grafica.md).
+
 ## 7. Falhas, EOF e timeout
 
 | Condição | Exceção local | Estado do canal |
@@ -201,7 +208,9 @@ sozinho, que a aplicação rejeitou todos os payloads inválidos.
 
 ### 10.3 Estado da evidência neste ambiente
 
-Nesta execução, `Wireshark`, `TShark` e `dumpcap` não estavam instalados. O
+Na última verificação documental, em 2026-11-18, nenhum arquivo `.pcapng`
+existia no repositório. Na tentativa de captura registrada anteriormente,
+`Wireshark`, `TShark` e `dumpcap` não estavam instalados. O
 `PktMon` estava disponível, mas o driver recusou a captura por falta de
 privilégio. Portanto, nenhum arquivo `.pcapng` foi produzido ou validado aqui.
 O gerador de tráfego e o procedimento acima são reproduzíveis, mas a evidência

@@ -17,6 +17,7 @@ from shared.protocol import (
     make_message,
     validate_payload,
 )
+from shared.telemetry import TraceObserver, emit_trace, trace_event
 
 DEFAULT_RECV_SIZE = MAX_MESSAGE_BYTES
 
@@ -40,7 +41,15 @@ class SocketOperationError(TransportError):
 class MessageChannel:
     """Canal JSONL com buffer e locks persistentes por conexão."""
 
-    def __init__(self, connection: socket.socket, *, recv_size: int = DEFAULT_RECV_SIZE):
+    def __init__(
+        self,
+        connection: socket.socket,
+        *,
+        recv_size: int = DEFAULT_RECV_SIZE,
+        trace_observer: TraceObserver | None = None,
+        trace_actor: str = "Canal TCP",
+        trace_peer: str = "",
+    ):
         if recv_size <= 0:
             raise ValueError("recv_size deve ser positivo")
 
@@ -51,6 +60,9 @@ class MessageChannel:
         self._receive_lock = threading.Lock()
         self._state_lock = threading.Lock()
         self._closed = False
+        self._trace_observer = trace_observer
+        self._trace_actor = trace_actor
+        self._trace_peer = trace_peer
 
     @property
     def socket(self) -> socket.socket:
@@ -73,6 +85,53 @@ class MessageChannel:
             if self._closed:
                 raise ConnectionClosedError("A conexão já está fechada")
 
+    def configure_tracing(
+        self,
+        observer: TraceObserver | None,
+        *,
+        actor: str | None = None,
+        peer: str | None = None,
+    ) -> None:
+        """Configura a explicação local do canal sem alterar bytes na rede."""
+
+        with self._state_lock:
+            self._trace_observer = observer
+            if actor is not None:
+                self._trace_actor = actor
+            if peer is not None:
+                self._trace_peer = peer
+
+    def _trace(
+        self,
+        direction: str,
+        action: str,
+        payload: Mapping[str, Any] | None = None,
+        *,
+        detail: str = "",
+        byte_count: int | None = None,
+        buffered_bytes: int | None = None,
+    ) -> None:
+        with self._state_lock:
+            observer = self._trace_observer
+            actor = self._trace_actor
+            peer = self._trace_peer
+        message_type = None if payload is None else str(payload.get("type", ""))
+        emit_trace(
+            observer,
+            trace_event(
+                layer="TRANSPORTE",
+                direction=direction,  # type: ignore[arg-type]
+                action=action,
+                actor=actor,
+                peer=peer,
+                message_type=message_type or None,
+                payload=payload,
+                detail=detail,
+                byte_count=byte_count,
+                buffered_bytes=buffered_bytes,
+            ),
+        )
+
     def send_message(self, payload: Mapping[str, Any]) -> None:
         """Codifica e envia um registro completo sem intercalar threads."""
 
@@ -91,6 +150,13 @@ class MessageChannel:
         if failure is not None:
             self.close()
             raise failure[0] from failure[1]
+        self._trace(
+            "SAIDA",
+            "encode_message + sendall",
+            payload,
+            detail="JSON → UTF-8 → LF; registro enviado integralmente pelo socket TCP.",
+            byte_count=len(data),
+        )
 
     def receive_message(self) -> dict[str, Any]:
         """Recebe exatamente uma mensagem, preservando bytes posteriores."""
@@ -110,7 +176,19 @@ class MessageChannel:
 
                     record = bytes(self._buffer[:delimiter_index])
                     del self._buffer[:record_size]
-                    return decode_message(record)
+                    message = decode_message(record)
+                    self._trace(
+                        "ENTRADA",
+                        "recv + buffer + decode_message",
+                        message,
+                        detail=(
+                            "LF delimitou um registro; bytes posteriores permaneceram "
+                            "no buffer da conexão."
+                        ),
+                        byte_count=record_size,
+                        buffered_bytes=len(self._buffer),
+                    )
+                    return message
 
                 if len(self._buffer) >= MAX_MESSAGE_BYTES:
                     raise MessageTooLargeError(
@@ -212,6 +290,9 @@ def connect_to_server(
     port: int,
     *,
     timeout: float | None = None,
+    trace_observer: TraceObserver | None = None,
+    trace_actor: str = "Cliente / transporte",
+    trace_peer: str | None = None,
 ) -> MessageChannel:
     """Abre uma conexão TCP cliente e devolve um canal TTTP/1.
 
@@ -232,7 +313,25 @@ def connect_to_server(
             connection.close()
         raise SocketOperationError("Não foi possível conectar ao servidor") from exc
 
-    return MessageChannel(connection)
+    peer = trace_peer or f"{host}:{port}"
+    channel = MessageChannel(
+        connection,
+        trace_observer=trace_observer,
+        trace_actor=trace_actor,
+        trace_peer=peer,
+    )
+    emit_trace(
+        trace_observer,
+        trace_event(
+            layer="TRANSPORTE",
+            direction="INTERNO",
+            action="socket.create_connection",
+            actor=trace_actor,
+            peer=peer,
+            detail="Conexão TCP estabelecida; o canal volta ao modo bloqueante.",
+        ),
+    )
+    return channel
 
 
 def create_listening_socket(
@@ -330,6 +429,7 @@ __all__ = [
     "SocketOperationError",
     "TransportError",
     "TransportTimeoutError",
+    "TraceObserver",
     "accept_connection",
     "close_connection",
     "connect_to_server",

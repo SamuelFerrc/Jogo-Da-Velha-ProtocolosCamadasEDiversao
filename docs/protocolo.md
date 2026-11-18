@@ -129,9 +129,9 @@ maiúsculas e minúsculas. Por exemplo, `type` e `Type` são nomes diferentes, e
    resposta e o fechamento controlado serão detalhados em T03.
 5. Alterações incompatíveis no formato, nos campos ou na semântica exigem uma
    nova versão do protocolo e uma decisão explícita da equipe.
-6. Depois da aprovação do marco I01, qualquer mudança deliberada no TTTP/1 DEVE
-   ser coordenada entre documentação, biblioteca compartilhada, testes, cliente
-   e servidor.
+6. O contrato abaixo é a linha de base implementada no repositório. Qualquer
+   mudança deliberada no TTTP/1 DEVE ser coordenada entre documentação,
+   biblioteca compartilhada, testes, cliente e servidor.
 
 ## 3. Regras gerais de envio
 
@@ -218,9 +218,9 @@ O contrato-base atende a T01 quando for possível responder de forma inequívoca
 - como fragmentação e concatenação são tratadas;
 - quais responsabilidades ficam fora da camada compartilhada.
 
-A aprovação desta seção conclui T01. A implementação dependente do protocolo
-permanece bloqueada até a aprovação conjunta de T01, T02, T03, C01 e S01 no
-marco I01.
+Esta seção, a implementação compartilhada e os testes automatizados atendem
+tecnicamente a T01. O marco I01 continua exigindo um registro de aprovação da
+equipe para ser considerado formalmente concluído.
 
 ## 7. Catálogo de mensagens — T02
 
@@ -285,13 +285,19 @@ Confirma que o servidor aceitou o handshake da versão 1.
 
 ### 7.5 `JOIN`
 
-Solicita a entrada do cliente identificado no lobby.
+Solicita a entrada do cliente identificado no lobby. O servidor aceita
+`JOIN` após o handshake inicial e também depois de `GAME_OVER`, enquanto a
+conexão permanecer aberta. No segundo caso, a sessão volta ao lobby para uma
+nova partida.
 
 ```json
 {"type":"JOIN","version":1}
 ```
 
-Campos: somente o envelope comum.
+Campos: somente o envelope comum. Um `JOIN` posterior a `GAME_OVER` não
+recupera o `game_id` encerrado: o próximo `START` usa outro identificador,
+`BOARD` começa em `revision: 0` e o pareamento não garante o mesmo
+adversário.
 
 ### 7.6 `WAITING`
 
@@ -488,6 +494,10 @@ sessão e aplica a política de saída do lobby ou de aborto da partida.
 11. `QUIT`, EOF ou falha de conexão encerram a sessão. Se o cliente estava em
     partida ativa, o servidor tenta notificar o adversário com
     `GAME_OVER(result="ABORTED", reason="OPPONENT_LEFT")`.
+12. Depois de `GAME_OVER`, uma sessão ainda conectada pode enviar novo
+    `JOIN` para voltar ao lobby ou `QUIT` para encerrar. Um novo pareamento
+    envia outro `START` e outro `BOARD(revision=0)`; não reabre a partida
+    anterior.
 
 A ordem lógica por conexão deve ser preservada. Para o solicitante de uma
 jogada terminal aceita, a ordem é `MOVE_RESULT`, `BOARD`, `GAME_OVER`.
@@ -559,9 +569,10 @@ efeito sobre sessão ou partida. O catálogo inclui `BAD_FORMAT`, `UNKNOWN_TYPE`
 `UNSUPPORTED_VERSION`, `MESSAGE_TOO_LARGE`, `INVALID_STATE`, `NOT_IN_GAME`,
 `NOT_YOUR_TURN`, `INVALID_POSITION`, `OCCUPIED`, `GAME_FINISHED` e `TIMEOUT`.
 
-T01, T02 e T03 documentados ainda não aprovam isoladamente o marco I01. A
-aprovação conjunta também depende do fluxo do cliente em C01 e dos estados do
-servidor em S01.
+T01, T02 e T03 estão implementados e cobertos pelos testes do contrato. O marco
+I01 permanece em andamento até existir um registro explícito de aprovação
+conjunta do contrato, do fluxo do cliente em C01 e dos estados do servidor em
+S01.
 
 ## 11. Correspondência com a implementação — T13
 

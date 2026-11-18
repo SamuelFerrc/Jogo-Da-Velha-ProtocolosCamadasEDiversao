@@ -10,7 +10,10 @@ O servidor permanece como autoridade sobre o estado da partida, as jogadas, os t
 
 ## 2. Interface inicial
 
-A aplicação utilizará inicialmente uma interface de terminal, com o seguinte menu:
+A aplicação preserva a interface de terminal e, quando iniciada em um
+PowerShell/CMD interativo, abre também a interface gráfica de `interface/`.
+As duas superfícies usam a mesma sessão e espelham estados e mensagens. O menu
+textual permanece disponível:
 
 ```text
 ================================
@@ -51,7 +54,9 @@ O cliente apresenta o tabuleiro inicial recebido por meio de `BOARD`.
 
 ### 3.5 Jogadas
 
-Quando for a vez do jogador, o cliente permite selecionar uma linha e uma coluna, ambas entre 0 e 2.
+Quando for a vez do jogador, a interface permite selecionar linha e coluna de
+1 a 3 e converte essas coordenadas para o intervalo de 0 a 2 usado no
+protocolo TTTP/1.
 
 A jogada é enviada ao servidor por meio da mensagem `MOVE`.
 
@@ -69,7 +74,13 @@ As informações apresentadas na interface devem corresponder ao estado confirma
 
 Quando a partida terminar, o cliente confere se `GAME_OVER` pertence ao `game_id` atual e se o resultado corresponde ao tabuleiro final. Depois apresenta o resultado e atualiza o placar da sessão: vitórias do jogador local, vitórias do adversário e empates. Como as marcas podem alternar entre revanches, o placar acompanha os jogadores, não as marcas. O placar usa o resultado oficial do servidor e não é salvo após fechar a conexão.
 
-O cliente pode pedir revanche sem fechar a conexão. Envia `JOIN` após `GAME_OVER(WIN|DRAW)`; ambos precisam solicitar a revanche. O servidor inicia uma nova partida com outro `game_id`, e o cliente reinicia a revisão esperada em zero. Enviar `QUIT` encerra a sessão. Se a conexão fechar porque o outro jogador recusou, o cliente encerra a sequência e apresenta o placar final.
+Depois de `GAME_OVER(WIN|DRAW)`, o cliente oferece jogar novamente sem fechar
+a conexão. Se o jogador aceitar, envia `JOIN`, volta ao lobby e aguarda
+`WAITING` ou um novo `START`. A partida seguinte usa outro `game_id` e
+reinicia a revisão esperada em zero. O servidor mantém pareamento FIFO: esse
+fluxo pode encontrar outro adversário e, se o participante anterior recusar,
+quem aceitou pode continuar aguardando no lobby. Enviar `QUIT` encerra a
+sessão.
 
 - Vitória;
 - Derrota;
@@ -95,7 +106,7 @@ Ao encerrar a sessão, o cliente envia `QUIT`, quando possível, fecha a conexã
 | Adversário realiza jogada | Receber e apresentar a atualização. |
 | Vitória, derrota ou empate | Exibir o resultado informado pelo servidor. |
 | Adversário desconectado | Informar o encerramento ou abandono da partida. |
-| Revanche | Atualizar e mostrar o placar; iniciar outra partida somente se ambos aceitarem. |
+| Jogar novamente | Atualizar o placar e enviar `JOIN`; aguardar novo pareamento, que pode envolver outro adversário. |
 | Jogador decide sair | Encerrar a sessão adequadamente. |
 
 ## 5. Regras de responsabilidade
@@ -139,7 +150,7 @@ GAME_OVER
   |
   +---- placar atualizado
   |
-  +---- JOIN (ambos aceitam) -> START -> BOARD -> nova partida
+  +---- JOIN -> WAITING/START -> BOARD -> nova partida
   |
   +---- QUIT / recusa -> ENCERRAMENTO
 ```
@@ -149,9 +160,10 @@ GAME_OVER
 - Dependência indicada na planilha: T02.
 - O catálogo de mensagens está documentado em `docs/protocolo.md`.
 - A implementação do transporte está em `shared/transport.py`.
-- A aprovação conjunta do marco I01 ainda precisa ser confirmada pela equipe.
+- O contrato está implementado e testado; o registro formal de aprovação
+  conjunta do marco I01 ainda precisa ser confirmado pela equipe.
 
-**Situação:** especificação C01 elaborada.
+**Situação:** C01 implementada e documentada.
 
 
 ---
@@ -160,7 +172,15 @@ GAME_OVER
 
 ## 8. Interface do tabuleiro
 
-Foi implementada uma interface de terminal para representar o tabuleiro 3×3.
+Foram implementadas uma interface de terminal e uma janela PySide6/Qt Quick
+para representar o tabuleiro 3×3. A janela também expõe a pilha
+interface → aplicação → transporte → TCP, com os registros TTTP/1 reais. O
+sistema visual e os critérios de IHC estão em
+[`interface_grafica.md`](interface_grafica.md).
+
+O tabuleiro é o elemento principal e permanece quadrado quando a gaveta do
+terminal é aberta. A gaveta participa do layout e comprime a área de trabalho,
+sem cobrir o jogo nem deformar as casas.
 
 O tabuleiro começa vazio e apresenta as marcas X e O conforme as atualizações recebidas do servidor.
 
@@ -207,22 +227,35 @@ Foi implementado um menu de terminal com as opções:
 1. Conectar e jogar.
 2. Sair.
 
-A execução utiliza:
+A execução utiliza o mesmo comando para abrir a janela e o espelho textual em
+um terminal interativo:
 
 `python -m client.client --host 127.0.0.1 --port 5000`
 
 Os parâmetros `--host` e `--port` permitem configurar o endereço e a porta do servidor.
+`--terminal-only` preserva somente o menu anterior; `--gui` força a janela.
 
 ## 13. Testes realizados
 
-Foram executados 29 testes específicos do cliente e 84 testes na suíte completa do projeto, todos aprovados.
+Na verificação de 2026-11-18, foram executados 36 testes específicos do cliente,
+10 testes de apresentação, telemetria e Qt/QML e 151 testes na suíte completa
+do projeto, todos aprovados.
 
-Também foi realizado um teste manual com servidor TCP simulado na porta 5001, verificando conexão, identificação, entrada no lobby, início da partida, recebimento do tabuleiro, encerramento e retorno ao menu.
+O histórico também registra um teste manual com servidor TCP simulado na porta
+5001 e uma execução anterior do cliente real contra o servidor oficial antes
+do merge final. O teste automatizado atual inicia o servidor em processo
+separado e usa dois canais TCP, mas ainda não executa duas instâncias de
+`python -m client.client` como subprocessos.
 
-A implementação do servidor real não faz parte desta etapa. A comunicação foi validada com simulações.
+Permanece pendente a demonstração final da `main` com um servidor e dois
+clientes interativos em processos distintos, além das capturas de tela exigidas
+por C13.
 
 ## 14. Situação final
 
-As etapas C01 a C13 foram desenvolvidas para a parte do cliente.
+As etapas C01 a C12 estão implementadas e cobertas por testes automatizados.
+C13 permanece em andamento porque as instruções estão documentadas, mas as
+capturas de tela da demonstração final ainda não foram produzidas.
 
-A aprovação conjunta do marco I01 permanece pendente de confirmação pela equipe.
+O marco I01 permanece em andamento somente quanto ao registro formal de
+aprovação da equipe; o contrato correspondente já está implementado e testado.

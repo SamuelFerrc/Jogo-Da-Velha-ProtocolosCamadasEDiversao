@@ -22,6 +22,14 @@ python -m server.server --host 127.0.0.1 --port 5000
 | `--port` | `5000` | Porta TCP. |
 | `--handshake-timeout` | `30` | Segundos para o cliente enviar `HELLO`. Não se aplica ao tempo de reflexão das jogadas. |
 | `--log-level` | `INFO` | Nível do `logging` (conexão, pareamento, jogadas, erros, término, EOF). |
+| `--gui` | automático em TTY | Força o painel gráfico mesmo fora de um terminal interativo. |
+| `--terminal-only` | desativado | Mantém somente o servidor textual legado. |
+
+Em um PowerShell/CMD interativo, o comando padrão abre também o painel em
+`interface/server_window.py`. O terminal continua recebendo o espelho textual
+dos eventos. O painel usa a mesma instância de `GameServer` e mostra listener,
+sessões, lobby, partidas, decisões da aplicação e os registros processados por
+`shared.transport`; não existe um servidor gráfico separado.
 
 ## 3. Concorrência
 
@@ -58,14 +66,27 @@ A ordem de validação de um `MOVE` é: participação e `game_id` → partida a
 - Falha ao enviar a um socket já fechado é registrada no log e não afeta a partida do adversário.
 - Se um participante cai entre o pareamento e o envio do `START`, a partida é abortada e o outro recebe `ABORTED`.
 
-## 6. Revanche (extensão sobre o diagrama de estados)
+## 6. Nova partida na mesma conexão
 
-O cliente descrito em `docs/cliente.md` pede revanche enviando `JOIN` na mesma conexão após `GAME_OVER`. Por isso o servidor aceita `JOIN` também no estado `ENCERRADO`: a sessão volta a `AGUARDANDO`, entra no lobby e, ao ser pareada, recebe novo `START` com **novo `game_id`** e `BOARD` com `revision` 0. As marcas **não** são preservadas (o primeiro a reentrar na fila é X). Não há reentrada em partida antiga e nenhuma mensagem nova foi criada.
+O cliente oferece essa operação como “revanche”, enviando `JOIN` na mesma
+conexão após `GAME_OVER`. O servidor aceita `JOIN` no estado
+`ENCERRADO`: a sessão volta a `AGUARDANDO`, entra no lobby e, ao ser
+pareada, recebe novo `START` com **novo `game_id`** e `BOARD` com
+`revision` 0. As marcas **não** são preservadas, pois o primeiro da nova fila
+recebe X. Não há reentrada em partida antiga e nenhuma mensagem nova foi
+criada.
 
-> **Divergência a harmonizar:** o diagrama de AGENTS.md §6.1 só prevê `QUIT`/EOF a partir de `ENCERRADO`. O fluxo de revanche exige `ENCERRADO → AGUARDANDO` via `JOIN`; a equipe deve confirmar e atualizar o diagrama e o PDF.
+Esse comportamento é uma extensão compatível do ciclo da sessão e está
+registrado em `AGENTS.md`, `docs/protocolo.md` e `docs/estados.md`. Não é
+uma negociação bilateral de revanche: o lobby continua FIFO, não reserva o
+adversário anterior e não informa ao cliente que esse adversário recusou.
 
 ## 7. Limitações conhecidas
 
 - Sem reconexão a uma partida em andamento e sem recuperação após queda do servidor.
 - Sem limite de conexões simultâneas nem proteção contra clientes lentos além do descarte quando o socket falha.
-- O pareamento é por ordem de chegada; a revanche não garante parear os mesmos adversários.
+- O pareamento é por ordem de chegada; jogar novamente não garante o mesmo
+  adversário.
+- Se um jogador enviar `JOIN` e o adversário anterior enviar `QUIT`, o
+  primeiro permanece no lobby até outro participante entrar ou até encerrar a
+  própria conexão.

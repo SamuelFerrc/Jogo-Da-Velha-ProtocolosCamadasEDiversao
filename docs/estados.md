@@ -5,10 +5,17 @@ Há dois conjuntos de estados distintos: o da **sessão** (por conexão) e o da 
 ## 1. Sessão (servidor)
 
 ```text
-CONECTADO ──HELLO/WELCOME──▶ IDENTIFICADO ──JOIN──▶ AGUARDANDO ──pareado: START+BOARD──▶ EM_PARTIDA
-                                   ▲                                                         │
-                                   │                                  WIN | DRAW | ABORTED   ▼
-                                   └──────────────(JOIN: revanche)────────────────────── ENCERRADO
+CONECTADO ──HELLO/WELCOME──▶ IDENTIFICADO ──JOIN──▶ AGUARDANDO
+                                                     │
+                                            START + BOARD
+                                                     ▼
+                                                EM_PARTIDA
+                                                     │ GAME_OVER
+                                                     ▼
+                                                ENCERRADO
+                                                     │
+                               novo JOIN ─────────────┘
+                               (retorna a AGUARDANDO)
 ```
 
 | Estado | Entrada válida | Efeito | Entrada inválida |
@@ -17,9 +24,13 @@ CONECTADO ──HELLO/WELCOME──▶ IDENTIFICADO ──JOIN──▶ AGUARDAN
 | `IDENTIFICADO` | `JOIN` | `AGUARDANDO`; sem adversário → `WAITING`; com adversário → `START` e `BOARD` aos dois | `HELLO` → `ERROR(INVALID_STATE)` |
 | `AGUARDANDO` | (aguarda pareamento) | `START` + `BOARD` inicial → `EM_PARTIDA` | `JOIN`/`HELLO` → `ERROR(INVALID_STATE)` |
 | `EM_PARTIDA` | `MOVE` | ver §2 | `JOIN`/`HELLO` → `ERROR(INVALID_STATE)` |
-| `ENCERRADO` | `JOIN` (revanche) | volta a `AGUARDANDO` | `MOVE` → `MOVE_RESULT(REJECTED, GAME_FINISHED)` |
+| `ENCERRADO` | `JOIN` (nova partida) | volta a `AGUARDANDO`; o próximo pareamento usa novo `game_id` | `MOVE` → `MOVE_RESULT(REJECTED, GAME_FINISHED)` |
 
 Em **qualquer** estado: `QUIT`, EOF ou falha de socket levam a `DESCONECTADO` (sessão removida do lobby e partida ativa abortada). `UNSUPPORTED_VERSION` e `MESSAGE_TOO_LARGE` também fecham a conexão. `MOVE` fora de partida → `MOVE_RESULT(REJECTED, NOT_IN_GAME)`.
+
+O retorno de `ENCERRADO` a `AGUARDANDO` reaproveita somente a conexão e a
+sessão. A partida anterior permanece terminal, e o lobby não garante parear os
+mesmos participantes.
 
 ## 2. Partida (servidor)
 

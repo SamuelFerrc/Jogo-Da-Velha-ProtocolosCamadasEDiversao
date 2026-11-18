@@ -221,6 +221,19 @@ modificações do repositório.
   sucesso, incluindo 20 `join` concorrentes formando 10 pares sem repetição.
 - Pendências: integração do lobby ao servidor TCP na próxima entrada.
 
+### 2026-11-15 11:58 — Guilherme Crocamo — S14: cobertura adicional de testes do servidor
+
+- Arquivos: `tests/test_server.py` e `docs/linha_do_tempo.md`.
+- Modificação: adicionados testes com sockets de loopback para vitória de X em
+  coluna, vitória de X na diagonal principal, vitória de O na diagonal
+  secundária e encerramento das conexões quando o servidor é parado. Nenhum
+  código de produção foi alterado.
+- Verificação: `python -m unittest discover -s tests` executou 105 testes com
+  sucesso em 3 execuções consecutivas.
+- Pendências: captura Wireshark (T12), teste em outra máquina da rede,
+  integração com o cliente após o merge do PR do cliente e harmonização do
+  PDF/planilha. Push e PR ainda não realizados, por decisão da equipe.
+
 ### 2026-11-15 12:20 — Guilherme Crocamo — S02–S03, S05–S14: servidor TCP
 
 - Arquivos: `server/server.py`, `tests/test_server.py` e `docs/linha_do_tempo.md`.
@@ -277,15 +290,171 @@ modificações do repositório.
   após o merge do PR do cliente.
 - Pendências: captura Wireshark (T12); atualizar PDF e planilha.
 
-### 2026-11-15 11:58 — Guilherme Crocamo — S14: cobertura adicional de testes do servidor
+### 2026-11-18 00:58 — CODEX — harmonização documental e status do plano
 
-- Arquivos: `tests/test_server.py` e `docs/linha_do_tempo.md`.
-- Modificação: adicionados testes com sockets de loopback para vitória de X em
-  coluna, vitória de X na diagonal principal, vitória de O na diagonal
-  secundária e encerramento das conexões quando o servidor é parado. Nenhum
-  código de produção foi alterado.
-- Verificação: `python -m unittest discover -s tests` executou 105 testes com
-  sucesso em 3 execuções consecutivas.
-- Pendências: captura Wireshark (T12), teste em outra máquina da rede,
-  integração com o cliente após o merge do PR do cliente e harmonização do
-  PDF/planilha. Push e PR ainda não realizados, por decisão da equipe.
+- Arquivos: `AGENTS.md`, `README.md`,
+  `Plano_Etapas_Jogo_da_Velha_UESC.xlsx`, `docs/arquitetura.md`,
+  `docs/cliente.md`, `docs/estados.md`, `docs/protocolo.md`,
+  `docs/servidor.md`, `docs/transporte.md` e
+  `docs/linha_do_tempo.md`.
+- Modificação: a documentação ainda descrevia a nova partida na mesma conexão
+  como revanche bilateral e mantinha contagens e status anteriores à
+  integração. O fluxo foi harmonizado com o código: `JOIN` após
+  `GAME_OVER` retorna a sessão ao lobby, sempre cria outro `game_id` e não
+  garante o mesmo adversário. Foram atualizados os diagramas, a sequência
+  TTTP/1, as limitações, a cobertura de testes e os critérios pendentes. A
+  planilha passou de 49 itens como `Não iniciado` para 44 `Concluído` e 5
+  `Em andamento` (T12, C13, I01, I04 e I08), com evidências nos marcos de
+  integração. Também foram corrigidos na planilha o intervalo 1..3 da
+  interface com conversão para 0..2, a rejeição semântica por
+  `MOVE_RESULT(REJECTED)`, o catálogo PING/PONG e o ciclo de estados.
+- Verificação: `python -m unittest discover -s tests -v` executou 141 testes
+  com sucesso; `python -m compileall -q shared client server tests tools`
+  terminou sem erros; `git -c core.whitespace=cr-at-eol diff --check` não
+  encontrou erros. A planilha foi recalculada, reimportada e renderizada nas
+  cinco abas; o resumo resultou em 44 concluídos, 5 em andamento e 90% de
+  progresso arredondado, sem erros de fórmula detectados.
+- Pendências: registrar a aprovação formal do I01; executar a demonstração da
+  `main` com servidor e dois clientes interativos em processos distintos;
+  produzir as capturas de tela de C13 e a captura Wireshark `.pcapng` de
+  T12/I08. O PDF de referência não foi alterado por não haver neste
+  repositório uma fonte editável correspondente; ele pode continuar sem a
+  extensão de novo `JOIN` após `GAME_OVER`.
+
+### 2026-11-18 01:43 — CODEX — interfaces gráficas e visualização das camadas
+
+- Arquivos criados: `design/DESIGN-coinbase.md`,
+  `design/auditoria-ihc-nielsen-shneiderman/README.md`,
+  `design/auditoria-ihc-nielsen-shneiderman/SKILL.md`,
+  `design/auditoria-ihc-nielsen-shneiderman/assets/modelo-relatorio.md`,
+  `design/auditoria-ihc-nielsen-shneiderman/examples/self-checkout.md`,
+  `design/auditoria-ihc-nielsen-shneiderman/references/principios.md`,
+  `interface/__init__.py`, `interface/client_state.py`,
+  `interface/client_window.py`, `interface/server_window.py`,
+  `interface/theme.py`, `interface/widgets.py`, `shared/telemetry.py`,
+  `tests/test_interface.py` e `docs/interface_grafica.md`.
+- Arquivos alterados: `client/client.py`, `server/server.py`,
+  `shared/transport.py`, `README.md`, `docs/arquitetura.md`,
+  `docs/cliente.md`, `docs/servidor.md`, `docs/transporte.md` e
+  `docs/linha_do_tempo.md`.
+- Modificação: antes, cliente e servidor possuíam somente apresentação textual
+  e o transporte não expunha observabilidade. Foram adicionadas janelas
+  Tkinter na pasta isolada `interface/`, abertas automaticamente pelos mesmos
+  comandos quando executados em PowerShell/CMD interativo, com espelho textual
+  acionável e opções `--gui`/`--terminal-only`. Cliente e servidor exibem a
+  passagem real por aplicação, `shared.transport` e TCP, sem modificar TTTP/1.
+  `MessageChannel` ganhou telemetria opcional e tolerante a falhas; o servidor
+  expõe uma fotografia somente de leitura das sessões. O visual foi revisto
+  conforme `design/DESIGN-coinbase.md`: azul único, hero escuro, canvas branco,
+  tipografia editorial, cartões de 24 px, campos de 12 px, botões e badges
+  pill, uma sombra e cartões APP/TCP sobrepostos. Os princípios de Nielsen e
+  Shneiderman da pasta `design/` orientaram feedback, prevenção de erros,
+  reconhecimento, teclado e encerramento claro.
+- Verificação: `python -m unittest discover -s tests -v` executou 148 testes
+  com sucesso; `python -m compileall -q shared client server interface tests`
+  terminou sem erros. Tkinter 8.6 foi importado e as janelas de servidor e
+  cliente foram iniciadas localmente; uma inspeção anterior identificou e
+  motivou a correção da largura do painel do cliente. A captura automatizada
+  do visual final redesenhado não foi concluída porque outra janela permaneceu
+  em primeiro plano; os processos de validação foram encerrados depois do
+  teste.
+- Pendências: executar uma partida completa usando duas janelas e o espelho de
+  terminal; produzir as capturas finais de C13; salvar a captura Wireshark
+  `.pcapng` de T12/I08; validar o layout final em tela menor e com tecnologia
+  assistiva. A aprovação formal de I01 continua externa a esta mudança.
+
+### 2026-11-18 02:03 — CODEX — aplicação dos esboços aprovados nas duas telas
+
+- Arquivos alterados: `interface/theme.py`, `interface/widgets.py`,
+  `interface/client_window.py`, `interface/server_window.py`,
+  `server/server.py`, `tests/test_interface.py`,
+  `docs/interface_grafica.md` e `docs/linha_do_tempo.md`.
+- Modificação: a primeira interface gráfica renderizada usava cartões com
+  geometria inconsistente e dava mais destaque ao terminal que ao jogo. O
+  cliente agora replica o esboço aprovado: tabuleiro quadrado como área
+  principal, coluna secundária de conexão/sessão, estado autoritativo e
+  terminal TTTP/1 em gaveta inferior sobreposta e recolhida por padrão. A
+  conexão começa automaticamente com o host/porta da linha de comando. O
+  servidor agora replica o esboço de central de partidas, com resumo superior,
+  sessões à esquerda e fluxo de aplicação/transporte à direita. Cartões,
+  botões, badges, cores e hierarquia foram ajustados aos tokens de
+  `design/DESIGN-coinbase.md`. `status_snapshot()` passou a fornecer também
+  resumo somente de leitura de cada partida para o painel, sem alterar TTTP/1.
+- Verificação: `python -m unittest discover -s tests -v` executou 149 testes
+  com sucesso; `python -m compileall -q shared client server interface tests`
+  terminou sem erros e `git -c core.whitespace=cr-at-eol diff --check` não
+  encontrou erro de whitespace. Cliente e
+  servidor foram iniciados como três processos reais (um servidor e dois
+  clientes), parearam em `g1` e as duas janelas finais foram capturadas por
+  processo para inspeção visual. A captura confirmou tabuleiro quadrado,
+  terminal recolhido, duas sessões no servidor e fluxo TTTP/1 real.
+- Pendências: validar interação de arrasto e teclado com tecnologia assistiva;
+  produzir a captura Wireshark `.pcapng` de T12/I08. A aprovação
+  formal de I01 continua externa a esta mudança.
+
+### 2026-11-18 02:20 — CODEX — migração para PySide6/QML e gaveta que comprime o cliente
+
+- Arquivos criados: `requirements.txt`, `interface/qt_common.py`,
+  `interface/qml/ClientWindow.qml`, `interface/qml/ServerWindow.qml`,
+  `interface/qml/components/DesignTokens.qml`,
+  `interface/qml/components/LayerStrip.qml`,
+  `interface/qml/components/PillBadge.qml`,
+  `interface/qml/components/PillButton.qml`,
+  `interface/qml/components/TraceTerminal.qml` e
+  `tests/test_qt_interface.py`.
+- Arquivos alterados: `interface/client_window.py`,
+  `interface/server_window.py`, `README.md`, `docs/arquitetura.md`,
+  `docs/cliente.md`, `docs/interface_grafica.md` e
+  `docs/linha_do_tempo.md`. Arquivos removidos:
+  `interface/theme.py` e `interface/widgets.py`.
+- Modificação: a camada visual Tkinter foi substituída por backends PySide6 e
+  telas Qt Quick/QML, mantendo os mesmos controladores de rede, o protocolo
+  TTTP/1, o `GameServer`, os comandos de PowerShell/CMD e o espelho textual.
+  As telas de cliente e servidor aplicam a composição dos esboços e os tokens
+  de `design/DESIGN-coinbase.md`. No cliente, o terminal deixou de se sobrepor
+  à interface: a altura animada da gaveta agora redefine o limite inferior da
+  área principal. O tabuleiro reduz uniformemente e permanece quadrado, com
+  células proporcionais, durante clique ou arrasto. A abertura dura 340 ms e
+  o fechamento 250 ms.
+- Verificação: `python -m unittest discover -s tests -v` executou 151 testes
+  com sucesso, incluindo dois testes Qt/QML fora de tela para carregamento das
+  janelas, inicialização do servidor, contração do layout e proporção 1:1 do
+  tabuleiro. `python -m compileall -q shared client server interface tests`
+  terminou sem erros e `git -c core.whitespace=cr-at-eol diff --check` não
+  encontrou erros. Um servidor e clientes reais foram iniciados na porta
+  5000; a captura da janela maximizada confirmou a gaveta aberta abaixo da
+  interface, a área principal comprimida e o tabuleiro sem deformação.
+- Pendências: validar a navegação completa com tecnologia assistiva; produzir
+  a captura Wireshark `.pcapng` de T12/I08. A aprovação formal de I01 continua
+  externa a esta mudança.
+
+### 2026-11-18 02:46 — CODEX — correções documentais e declaração de uso de IA
+
+- Arquivo criado: `docs/declaracao_uso_ia.md`.
+- Arquivos alterados: `README.md`, `docs/cliente.md`,
+  `docs/linha_do_tempo.md`, `Plano_Etapas_Jogo_da_Velha_UESC.xlsx` e
+  `Projeto_Jogo_da_Velha_Cliente_Servidor_UESC_ABNT.pdf`.
+- Modificação: a documentação do cliente passou a distinguir as coordenadas de
+  interface 1..3 dos índices 0..2 do protocolo. A entrada de 11:58 foi movida
+  para sua posição cronológica e a entrada das interfaces passou a enumerar os
+  arquivos criados em `design/`. A atividade T03 da planilha agora lista o
+  catálogo completo de onze códigos de erro. Foi criada uma declaração pública
+  do uso de OpenAI Codex e adicionado seu link ao README. Como o PDF não possui
+  fonte editável no repositório, suas treze páginas originais foram preservadas
+  e uma página normativa de harmonização foi inserida após a capa, com os
+  exemplos TTTP/1 corretos, o fluxo de nova partida e a declaração resumida de
+  uso de IA.
+- Verificação: `python -m unittest discover -s tests -v` executou 151 testes
+  com sucesso; `python -m compileall -q shared client server interface tests
+  tools` terminou sem erros; `git -c core.whitespace=cr-at-eol diff --check`
+  não encontrou erros. A planilha foi recalculada, exportada, reaberta e
+  renderizada; T03 contém os onze códigos e a busca de erros de fórmula não
+  encontrou ocorrências. O PDF foi reaberto com 14 páginas, teve a nova página
+  e as páginas adjacentes renderizadas sem cortes ou sobreposições e contém os
+  termos normativos esperados. Os 22 links locais da documentação foram
+  verificados, sem destinos ausentes, e as 23 entradas reais da linha do tempo
+  ficaram em ordem cronológica.
+- Pendências: permanecem as pendências anteriores de evidência final, incluindo
+  a captura Wireshark de T12/I08, as capturas exigidas por C13 e a aprovação
+  formal de I01. Se a fonte editável do PDF for recuperada, a nota normativa
+  pode ser incorporada diretamente ao corpo e ao sumário em uma futura edição.

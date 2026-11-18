@@ -14,6 +14,7 @@ import itertools
 import logging
 import queue
 import socket
+import sys
 import threading
 from enum import Enum
 from typing import Any
@@ -36,6 +37,7 @@ from shared.transport import (
     accept_connection,
     create_listening_socket,
 )
+from shared.telemetry import TraceObserver, emit_trace, trace_event
 
 LOGGER = logging.getLogger("tttp.server")
 
@@ -58,7 +60,13 @@ class SessionState(str, Enum):
 class Session:
     """Uma conexão de cliente: estado de sessão, fila de saída e partida atual."""
 
-    def __init__(self, client_id: str, channel: MessageChannel, address: Any) -> None:
+    def __init__(
+        self,
+        client_id: str,
+        channel: MessageChannel,
+        address: Any,
+        trace_observer: TraceObserver | None = None,
+    ) -> None:
         self.client_id = client_id
         self.channel = channel
         self.address = address
@@ -67,6 +75,12 @@ class Session:
         self._outbox: queue.Queue[Any] = queue.Queue()
         self._flag_lock = threading.Lock()
         self._disconnected = False
+        self._trace_observer = trace_observer
+        self.channel.configure_tracing(
+            trace_observer,
+            actor="Servidor / transporte",
+            peer=f"{client_id} {address}",
+        )
 
     def is_connected(self) -> bool:
         with self._flag_lock:
@@ -85,6 +99,22 @@ class Session:
         """Enfileira sem bloquear; descarta se a sessão já foi encerrada."""
 
         if self.is_connected():
+            emit_trace(
+                self._trace_observer,
+                trace_event(
+                    layer="APLICACAO",
+                    direction="SAIDA",
+                    action="Resposta enfileirada pela aplicação",
+                    actor="Servidor / aplicação",
+                    peer=self.client_id,
+                    message_type=message["type"],
+                    payload=message,
+                    detail=(
+                        "A fila preserva a ordem lógica; a thread de escrita "
+                        "acionará shared.transport sem reter o lock da partida."
+                    ),
+                ),
+            )
             self._outbox.put(message)
 
     def close_after_flush(self) -> None:
@@ -113,6 +143,7 @@ class GameServer:
         port: int = DEFAULT_PORT,
         *,
         handshake_timeout: float | None = DEFAULT_HANDSHAKE_TIMEOUT,
+        trace_observer: TraceObserver | None = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -125,6 +156,7 @@ class GameServer:
         self._listener: socket.socket | None = None
         self._accept_thread: threading.Thread | None = None
         self._stopping = threading.Event()
+        self._trace_observer = trace_observer
 
     # ------------------------------------------------------------------ ciclo de vida
 
@@ -134,6 +166,74 @@ class GameServer:
             raise RuntimeError("Servidor não iniciado")
         host, port = self._listener.getsockname()[:2]
         return host, port
+
+    def status_snapshot(self) -> dict[str, Any]:
+        """Fotografia somente de leitura para a interface do operador."""
+
+        with self._sessions_lock:
+            sessions = list(self._sessions.values())
+        rows = [
+            {
+                "client_id": session.client_id,
+                "address": str(session.address),
+                "state": session.state.value,
+                "game_id": session.game.game_id if session.game is not None else "—",
+                "connected": session.is_connected(),
+            }
+            for session in sessions
+        ]
+        unique_games = {
+            session.game.game_id: session.game
+            for session in sessions
+            if session.game is not None and session.is_connected()
+        }
+        game_rows = []
+        for game in unique_games.values():
+            snapshot = game.snapshot()
+            game_rows.append(
+                {
+                    "game_id": snapshot.game_id,
+                    "revision": snapshot.revision,
+                    "turn": snapshot.turn,
+                    "status": game.status.value,
+                }
+            )
+        try:
+            address: tuple[str, int] | None = self.address
+        except RuntimeError:
+            address = None
+        return {
+            "running": self._listener is not None and not self._stopping.is_set(),
+            "address": address,
+            "sessions": rows,
+            "games": sorted(game_rows, key=lambda row: row["game_id"]),
+            "session_count": sum(1 for row in rows if row["connected"]),
+            "waiting_count": self._lobby.waiting_count(),
+            "game_count": len(unique_games),
+        }
+
+    def _trace(
+        self,
+        direction: str,
+        action: str,
+        *,
+        session: Session | None = None,
+        message: dict[str, Any] | None = None,
+        detail: str = "",
+    ) -> None:
+        emit_trace(
+            self._trace_observer,
+            trace_event(
+                layer="APLICACAO",
+                direction=direction,  # type: ignore[arg-type]
+                action=action,
+                actor="Servidor / aplicação",
+                peer="" if session is None else session.client_id,
+                message_type=None if message is None else message.get("type"),
+                payload=message,
+                detail=detail,
+            ),
+        )
 
     def start(self) -> tuple[str, int]:
         """Abre a escuta e atende conexões em segundo plano."""
@@ -146,6 +246,11 @@ class GameServer:
         )
         self._accept_thread.start()
         LOGGER.info("Servidor escutando em %s:%s", *self.address)
+        self._trace(
+            "INTERNO",
+            "Servidor em escuta",
+            detail=f"A aplicação solicitou listen/accept em {self.address[0]}:{self.address[1]}.",
+        )
         return self.address
 
     def serve_forever(self) -> None:
@@ -174,6 +279,7 @@ class GameServer:
         for session in sessions:
             session.channel.close()
         LOGGER.info("Servidor encerrado")
+        self._trace("INTERNO", "Servidor encerrado", detail="Listener e canais TCP foram fechados.")
 
     # ------------------------------------------------------------------ aceitação
 
@@ -190,10 +296,21 @@ class GameServer:
                     LOGGER.error("Falha ao aceitar conexão: %s", exc)
                 return
             client_id = f"c{next(self._client_counter)}"
-            session = Session(client_id, channel, address)
+            session = Session(
+                client_id,
+                channel,
+                address,
+                trace_observer=self._trace_observer,
+            )
             with self._sessions_lock:
                 self._sessions[client_id] = session
             LOGGER.info("%s: conexão aceita de %s", client_id, address)
+            self._trace(
+                "INTERNO",
+                "Conexão aceita",
+                session=session,
+                detail="accept() criou um canal; a sessão ainda aguarda HELLO.",
+            )
             threading.Thread(
                 target=session.writer_loop, name=f"{client_id}-writer", daemon=True
             ).start()
@@ -250,6 +367,13 @@ class GameServer:
             self._error(session, "BAD_FORMAT", "Mensagem inválida")
             return True
 
+        self._trace(
+            "ENTRADA",
+            "Mensagem entregue à aplicação",
+            session=session,
+            message=message,
+            detail="shared.transport reconstruiu o registro JSONL antes do roteamento.",
+        )
         return self._dispatch(session, message)
 
     def _dispatch(self, session: Session, message: dict[str, Any]) -> bool:
@@ -277,6 +401,12 @@ class GameServer:
             return True
         session.state = SessionState.IDENTIFIED
         session.channel.set_timeout(None)  # sem timeout curto para o tempo de jogo
+        self._trace(
+            "INTERNO",
+            "Handshake validado",
+            session=session,
+            detail="HELLO válido promoveu a sessão para IDENTIFICADO.",
+        )
         session.send(make_message("WELCOME", client_id=session.client_id))
         return True
 
@@ -290,6 +420,12 @@ class GameServer:
             game = self._lobby.join(session)
             if game is None:
                 LOGGER.info("%s: aguardando adversário", session.client_id)
+                self._trace(
+                    "INTERNO",
+                    "Sessão entrou no lobby",
+                    session=session,
+                    detail="JOIN válido; pareamento FIFO ainda não encontrou adversário.",
+                )
                 session.send(make_message("WAITING"))
             else:
                 self._start_game(game)
@@ -315,6 +451,13 @@ class GameServer:
                 if member is not None:
                     member.send(self._board_message(snapshot))
             LOGGER.info("Partida %s iniciada: %s", game.game_id, game.players)
+            self._trace(
+                "INTERNO",
+                "Partida criada",
+                detail=(
+                    f"{game.game_id}: servidor atribuiu X/O, turno X e BOARD revision 0."
+                ),
+            )
             # Um participante pode ter caído entre o pareamento e esta atribuição.
             if any(m is None or not m.is_connected() for m in sessions.values()):
                 self._abort_game(game)
@@ -331,6 +474,13 @@ class GameServer:
                 LOGGER.info(
                     "%s: MOVE rejeitado (%s) em %s", session.client_id, outcome.code, game.game_id
                 )
+                self._trace(
+                    "INTERNO",
+                    "Jogada rejeitada sem mutação",
+                    session=session,
+                    message=message,
+                    detail=f"{outcome.code}: turno, tabuleiro e revision foram preservados.",
+                )
                 self._reject(session, message["game_id"], outcome.code, outcome.message)
                 return True
 
@@ -338,6 +488,15 @@ class GameServer:
             LOGGER.info(
                 "%s: MOVE aceito (%s,%s) em %s rev=%s",
                 session.client_id, outcome.row, outcome.col, game.game_id, snapshot.revision,
+            )
+            self._trace(
+                "INTERNO",
+                "Jogada validada e aplicada",
+                session=session,
+                message=message,
+                detail=(
+                    f"Estado autoritativo avançou atomicamente para revision {snapshot.revision}."
+                ),
             )
             session.send(
                 make_message(
@@ -354,6 +513,11 @@ class GameServer:
                 member.send(self._board_message(snapshot))
             if outcome.finished:
                 LOGGER.info("Partida %s encerrada: %s %s", game.game_id, outcome.result, outcome.winner)
+                self._trace(
+                    "INTERNO",
+                    "Resultado oficial calculado",
+                    detail=f"{game.game_id}: {outcome.result}; winner={outcome.winner}.",
+                )
                 for member in members:
                     member.send(
                         make_message(
@@ -404,6 +568,11 @@ class GameServer:
             if not game.abort():
                 return
             LOGGER.info("Partida %s abortada", game.game_id)
+            self._trace(
+                "INTERNO",
+                "Partida abortada",
+                detail=f"{game.game_id}: desconexão; abandono não foi convertido em vitória.",
+            )
             for member in self._members(game):
                 if member.is_connected():
                     member.send(
@@ -441,6 +610,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="segundos para o cliente enviar HELLO (padrão: 30)",
     )
     parser.add_argument("--log-level", default="INFO", help="DEBUG, INFO, WARNING...")
+    display = parser.add_mutually_exclusive_group()
+    display.add_argument(
+        "--gui",
+        action="store_true",
+        help="força a interface gráfica mesmo sem terminal interativo",
+    )
+    display.add_argument(
+        "--terminal-only",
+        action="store_true",
+        help="mantém somente o servidor textual legado",
+    )
     return parser
 
 
@@ -450,6 +630,18 @@ def main(argv: list[str] | None = None) -> None:
         level=args.log_level.upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    use_gui = args.gui or (
+        not args.terminal_only and sys.stdin.isatty() and sys.stdout.isatty()
+    )
+    if use_gui:
+        from interface.server_window import run_server_app
+
+        run_server_app(
+            args.host,
+            args.port,
+            handshake_timeout=args.handshake_timeout,
+        )
+        return
     GameServer(args.host, args.port, handshake_timeout=args.handshake_timeout).serve_forever()
 
 

@@ -21,6 +21,13 @@ Implementar um sistema distribuído em que **dois programas clientes**, executad
 
 **Fora do escopo mínimo:** autenticação complexa, persistência de contas, placar histórico, reconexão de partida, chat, IA adversária, matchmaking sofisticado e interface gráfica obrigatória. Não implemente extensões antes de concluir os testes essenciais.
 
+**Extensão adotada neste repositório:** depois de `GAME_OVER`, uma conexão ainda
+aberta pode enviar novo `JOIN` e voltar ao lobby. Isso cria **outra partida**,
+com novo `game_id`, `BOARD(revision=0)` e marcas novamente atribuídas pelo
+servidor. A interface chama esse fluxo de revanche, mas o pareamento continua
+FIFO e não garante o mesmo adversário. Essa extensão não é reconexão nem
+recuperação da partida encerrada.
+
 ## 2. Fontes e precedência de decisões
 
 As referências do planejamento são:
@@ -163,6 +170,9 @@ As mensagens de tabuleiro (`BOARD`) usam **matriz 3×3**; cada célula contém `
 9. Se a jogada encerrou a partida: após `BOARD`, servidor envia `GAME_OVER` **aos dois**.
 10. Em jogada inválida: enviar **somente** `MOVE_RESULT(status=REJECTED, code=...)` ao solicitante; **não** incrementar `revision` nem alterar tabuleiro/turno.
 11. `QUIT`, EOF ou falha de conexão encerram a sessão; se havia adversário em partida, avisar o adversário por `GAME_OVER(result=ABORTED, reason=OPPONENT_LEFT)`.
+12. Depois de `GAME_OVER`, o cliente pode enviar `JOIN` na mesma conexão
+    para voltar ao lobby ou `QUIT` para encerrar. Um novo pareamento usa novo
+    `game_id`; não reabre a partida terminada nem garante o mesmo adversário.
 
 **Regra de compatibilidade adotada:** para rejeições semânticas de `MOVE`, usar `MOVE_RESULT` com `status=REJECTED`. Reservar `ERROR` para problemas de formato, protocolo ou estado de sessão fora de uma jogada bem formada. O PDF traz um exemplo ilustrativo `ERROR` com `OCCUPIED`; essa divergência precisa ser corrigida na documentação formal, e **não** implementada como dois comportamentos alternativos. Não enviar `ERROR` *e* `MOVE_RESULT` para a mesma rejeição.
 
@@ -187,6 +197,9 @@ As mensagens de tabuleiro (`BOARD`) usam **matriz 3×3**; cada célula contém `
 ### 5.5 Política de sessão e desconexões
 
 - Nesta versão, **não há recuperação de partida após a desconexão**. Pode-se iniciar uma nova sessão/partida a partir de nova conexão; não há reentrada automática em `game_id` antigo.
+- Uma conexão preservada após `GAME_OVER` pode enviar novo `JOIN` para
+  voltar ao lobby. Esse fluxo inicia outra partida e não contradiz a ausência
+  de recuperação: o `game_id` encerrado nunca é retomado.
 - `QUIT` fecha a sessão depois de o servidor processar a saída; não exigir `BYE`, que não faz parte do catálogo.
 - Se alguém abandonar o lobby, retirar sua sessão da fila; não formar partida com clientes desconectados.
 - Se um participante abandonar partida ativa, marcar o jogo como abortado e notificar o outro com `GAME_OVER(ABORTED)`. **Abandono não conta automaticamente como vitória** nesta versão.
@@ -214,12 +227,16 @@ EM_PARTIDA
    │ GAME_OVER
    ▼
 ENCERRADO
-   │ QUIT / encerramento TCP
-   ▼
-DESCONECTADO
+   ├── JOIN ───────────────► AGUARDANDO (nova partida, novo game_id)
+   └── QUIT / EOF ─────────► DESCONECTADO
 ```
 
-**Qualquer** estado conectado pode passar a `DESCONECTADO` em EOF/falha. `WAITING` só existe após `JOIN`. O servidor também possui um estado **interno da partida** (`AGUARDANDO`, `ATIVA`, `FINALIZADA` ou `ABORTADA`), distinto do estado de sessão TCP. Não tratar os estados como mensagens da camada de transporte.
+**Qualquer** estado conectado pode passar a `DESCONECTADO` em EOF/falha.
+`WAITING` só existe após `JOIN`. O retorno de `ENCERRADO` a
+`AGUARDANDO` reaproveita a sessão TCP, não a partida anterior. O servidor
+também possui um estado **interno da partida** (`AGUARDANDO`, `ATIVA`,
+`FINALIZADA` ou `ABORTADA`), distinto do estado de sessão TCP. Não tratar
+os estados como mensagens da camada de transporte.
 
 ### 6.2 Invariantes de jogo (nunca violar)
 
@@ -345,6 +362,8 @@ Esses são os **comandos-alvo** a implementar e documentar no README, **não** u
 - Rejeição: X tenta duas jogadas consecutivas; O tenta fora do turno; célula ocupada; índice -1 ou 3; tipo errado; `game_id` alheio; MOVE após GAME_OVER.
 - Concorrência: duas requisições concorrentes não resultam em duas alterações no mesmo turno; revisões são monotônicas e consistentes.
 - Desconexão: cliente sai em `AGUARDANDO`; cliente sai em `EM_PARTIDA`; servidor cai; adversário recebe `ABORTED` quando o envio ainda é possível.
+- Nova partida na mesma conexão: `JOIN` após `GAME_OVER` volta ao lobby,
+  produz outro `game_id` e não preserva adversário nem marcas.
 
 Para integração, usar sockets de loopback em testes automatizados e, na demonstração final, **dois terminais/processos clientes** conectados a um servidor. Registrar, se disponível, captura do Wireshark mostrando TCP e payload JSONL.
 
@@ -380,6 +399,7 @@ As questões abaixo foram detectadas **nos documentos de planejamento**, não em
 | O destino após desconexão ou abandono não está especificado em payload. | `GAME_OVER(result=ABORTED, winner=null, reason=OPPONENT_LEFT)`. | Atualizar catálogo de mensagens e diagrama de estados. |
 | A planilha usa dependências preliminares que podem parecer circulares antes da aprovação do contrato. | Rascunho conjunto de T01–T03/C01/S01; **I01 aprova contrato** e libera implementação. | Ajustar explicação de pré-requisitos da etapa 0. |
 | O nome expandido TTTP contém *Transport*, apesar de o protocolo ser de aplicação. | Conservar identificador **TTTP/1** do PDF, descrevendo corretamente sua camada. | Inserir esclarecimento na introdução do protocolo. |
+| O cliente implementado oferece “revanche”, mas o fluxo original termina após `GAME_OVER`. | Permitir novo `JOIN` na mesma conexão como retorno ao lobby, sempre com novo `game_id`; não garantir o mesmo adversário. | Tratar como extensão compatível da sessão e distingui-la de reconexão/recuperação. |
 
 ## 13. Critério de conclusão do projeto
 

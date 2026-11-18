@@ -1,5 +1,6 @@
 
 import argparse
+import sys
 
 from shared.transport import (
     connect_to_server,
@@ -586,7 +587,32 @@ def main():
         help="Porta do servidor"
     )
 
+    display = parser.add_mutually_exclusive_group()
+    display.add_argument(
+        "--gui",
+        action="store_true",
+        help="força a interface gráfica mesmo sem terminal interativo",
+    )
+    display.add_argument(
+        "--terminal-only",
+        action="store_true",
+        help="mantém somente o cliente textual legado",
+    )
+
     args = parser.parse_args()
+
+    use_gui = args.gui or (
+        not args.terminal_only and sys.stdin.isatty() and sys.stdout.isatty()
+    )
+    if use_gui:
+        from interface.client_window import run_client_app
+
+        run_client_app(
+            args.host,
+            args.port,
+            console_enabled=sys.stdin.isatty() and sys.stdout.isatty(),
+        )
+        return
 
     while True:
         print("\n================================")
