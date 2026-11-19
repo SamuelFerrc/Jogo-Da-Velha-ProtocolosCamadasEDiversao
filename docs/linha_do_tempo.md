@@ -504,3 +504,16 @@ modificações do repositório.
   TCP de loopback. A confirmação visual em outra máquina/LAN continua sendo
   uma verificação manual recomendada; permanecem também as evidências finais
   já registradas para T12/I08, C13 e I01.
+
+### 2026-11-19 01:37 — CODEX — identificação dos integrantes no README
+
+- Arquivos alterados: `README.md` e `docs/linha_do_tempo.md`.
+- Modificação: o README não apresentava nominalmente a equipe. Foi adicionada
+  no início da documentação a seção “Integrantes”, com Samuel Ferreira Santos,
+  Guilherme Crocamo Freire e Gustavo Souza Silva, sem modificar a descrição
+  técnica ou o protocolo.
+- Verificação: a posição e a grafia dos três nomes foram conferidas no README;
+  `git -c core.whitespace=cr-at-eol diff --check` não encontrou erro de
+  whitespace.
+- Pendências: nenhuma específica desta alteração documental; permanecem as
+  evidências finais já registradas para T12/I08, C13 e I01.

@@ -5,6 +5,12 @@ executados em processos independentes, comunicam-se com **um servidor central**
 por sockets TCP. Cliente e servidor trocam mensagens do protocolo de aplicação
 próprio **TTTP/1**, documentado neste README e implementado em Python.
 
+## Integrantes
+
+- Samuel Ferreira Santos
+- Guilherme Crocamo Freire
+- Gustavo Souza Silva
+
 Este arquivo é a **documentação principal e autocontida** do projeto. Os
 documentos em [`docs/`](docs/) aprofundam decisões de arquitetura, transporte,
 cliente, servidor, interface e protocolo sem substituir o contrato resumido
