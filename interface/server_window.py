@@ -48,7 +48,6 @@ class ServerBackend(QObject):
         self._poll_timer = QTimer(self)
         self._poll_timer.setInterval(100)
         self._poll_timer.timeout.connect(self._refresh_snapshot)
-        self._poll_timer.start()
 
     # ---------------------------------------------------------------- propriedades QML
 
@@ -133,6 +132,8 @@ class ServerBackend(QObject):
             self.stateChanged.emit()
             return
         self.server = candidate
+        if not self._poll_timer.isActive():
+            self._poll_timer.start()
         self._server_state = "ONLINE"
         self._address = f"Escutando em {address[0]}:{address[1]}"
         self._explanation = (
@@ -148,6 +149,7 @@ class ServerBackend(QObject):
         self._server_state = "ENCERRANDO"
         self.stateChanged.emit()
         server.stop()
+        self._poll_timer.stop()
         self.server = None
         self._server_state = "OFFLINE"
         self._address = "—"

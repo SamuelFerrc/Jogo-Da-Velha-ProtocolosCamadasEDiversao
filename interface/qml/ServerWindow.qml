@@ -207,6 +207,7 @@ ApplicationWindow {
 
                             ListView {
                                 id: sessionsList
+                                objectName: "sessionsList"
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 model: backend.sessions
@@ -274,6 +275,7 @@ ApplicationWindow {
                                 color: theme.surfaceDark
                                 radius: 12
                                 Text {
+                                    objectName: "gameSummaryText"
                                     anchors.left: parent.left
                                     anchors.leftMargin: 14
                                     anchors.verticalCenter: parent.verticalCenter

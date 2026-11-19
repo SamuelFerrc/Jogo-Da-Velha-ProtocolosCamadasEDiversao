@@ -341,7 +341,7 @@ Execute toda a suíte a partir da raiz:
 python -m unittest discover -s tests -v
 ```
 
-A suíte contém 151 testes para regras, lobby, protocolo, framing TCP,
+A suíte contém 152 testes para regras, lobby, protocolo, framing TCP,
 fragmentação e concatenação, Unicode, limites de tamanho, concorrência,
 desconexões, cliente, servidor, interface e integração. O teste de integração
 abre o servidor em processo separado e usa dois participantes TCP para concluir

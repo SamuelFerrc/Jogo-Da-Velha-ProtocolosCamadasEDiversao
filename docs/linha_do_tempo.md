@@ -479,3 +479,28 @@ modificações do repositório.
   máquinas físicas nesta mudança. Permanecem pendentes a captura Wireshark
   `.pcapng` de T12/I08, as evidências finais exigidas por C13 e a aprovação
   formal externa de I01.
+
+### 2026-11-19 01:14 — CODEX — atualização ao vivo do painel do servidor
+
+- Arquivos alterados: `interface/server_window.py`,
+  `interface/qml/ServerWindow.qml`, `tests/test_qt_interface.py`, `README.md` e
+  `docs/linha_do_tempo.md`.
+- Modificação: o temporizador de fotografia do servidor era iniciado no
+  construtor de `ServerBackend`, antes de existir uma `QGuiApplication` na
+  inicialização real pela linha de comando. O Qt não ativava esse temporizador;
+  o jogo e as conexões continuavam funcionando, mas o painel permanecia em
+  “Aguardando conexões TCP” e “Nenhuma partida ativa”. O temporizador agora é
+  iniciado junto com `startServer()` e interrompido com `stopServer()`. A lista
+  de sessões e o resumo de partida receberam identificadores somente para
+  inspeção automatizada. O teste Qt passou a conectar dois canais TCP reais,
+  executar `HELLO`/`JOIN`, formar `g1` e confirmar na interface duas sessões e
+  uma partida ativa. O total documentado da suíte foi atualizado para 152.
+- Verificação: `python -m unittest tests.test_qt_interface -v` executou 3
+  testes com sucesso; `python -m unittest discover -s tests -v` executou 152
+  testes com sucesso; `python -m compileall -q interface tests` terminou sem
+  erros; `git -c core.whitespace=cr-at-eol diff --check` não encontrou erro de
+  whitespace.
+- Pendências: a correção foi validada com Qt em modo offscreen e dois sockets
+  TCP de loopback. A confirmação visual em outra máquina/LAN continua sendo
+  uma verificação manual recomendada; permanecem também as evidências finais
+  já registradas para T12/I08, C13 e I01.
