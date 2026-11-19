@@ -458,3 +458,24 @@ modificações do repositório.
   a captura Wireshark de T12/I08, as capturas exigidas por C13 e a aprovação
   formal de I01. Se a fonte editável do PDF for recuperada, a nota normativa
   pode ser incorporada diretamente ao corpo e ao sumário em uma futura edição.
+
+### 2026-11-19 00:43 — CODEX — README como documentação principal da entrega
+
+- Arquivos alterados: `README.md` e `docs/linha_do_tempo.md`.
+- Modificação: o README anterior apresentava a execução e encaminhava o leitor
+  aos documentos separados, mas não reunia sozinho todos os itens solicitados
+  no enunciado. O novo README passou a ser uma documentação autocontida com
+  propósito, funcionamento, arquitetura, justificativa do TCP, requisitos
+  mínimos, execução local e em LAN, formato TTTP/1, catálogo completo de
+  mensagens, ordem dos eventos, máquinas de estados, erros, invariantes,
+  desconexões, estrutura e testes. As referências para `docs/` foram mantidas
+  como aprofundamento técnico, sem substituir o conteúdo principal.
+- Verificação: `python -m unittest discover -s tests -v` executou 151 testes
+  com sucesso. Uma verificação dos links Markdown encontrou 11 referências com
+  destinos locais existentes; a checagem das dez seções exigidas no README não
+  encontrou ausência; `git -c core.whitespace=cr-at-eol diff --check` não
+  encontrou erro de whitespace.
+- Pendências: a configuração documentada para LAN não foi exercitada entre
+  máquinas físicas nesta mudança. Permanecem pendentes a captura Wireshark
+  `.pcapng` de T12/I08, as evidências finais exigidas por C13 e a aprovação
+  formal externa de I01.
